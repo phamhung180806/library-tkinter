@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from datetime import datetime
 import pandas as pd
 import os
@@ -7,81 +7,93 @@ import os
 class EmployeeApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Employee Information")
+        self.root.title("Thông tin nhân viên")
 
-
-        self.fields = ["Mã", "Tên", "Ngày sinh", "Giới tính", "Đơn vị", "Chức danh", "Số CMND", "Ngày cấp"]
+        # Labels và Entries
+        self.fields = [
+            "Mã", "Tên", "Ngày sinh", "Đơn vị", "Chức danh", "Số CMND", "Ngày cấp"
+        ]
         self.entries = {}
 
+        # Tạo giao diện cho từng field
         for idx, field in enumerate(self.fields):
-            label = tk.Label(root, text=field)
-            label.grid(row=idx, column=0)
-            entry = tk.Entry(root)
-            entry.grid(row=idx, column=1)
+            label = tk.Label(root, text=field, font=("Arial", 10))
+            label.grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+
+            entry = tk.Entry(root, width=30)
+            entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
             self.entries[field] = entry
 
+        # Giới tính (Radio Buttons)
+        tk.Label(root, text="Giới tính", font=("Arial", 10)).grid(row=2, column=2, sticky="e")
+        self.gender_var = tk.StringVar(value="Nam")
+        tk.Radiobutton(root, text="Nam", variable=self.gender_var, value="Nam").grid(row=2, column=3, sticky="w")
+        tk.Radiobutton(root, text="Nữ", variable=self.gender_var, value="Nữ").grid(row=3, column=3, sticky="w")
 
-        self.checkbox_customer = tk.IntVar()
-        self.checkbox_supplier = tk.IntVar()
-        tk.Checkbutton(root, text="Là khách hàng", variable=self.checkbox_customer).grid(row=len(self.fields), column=0)
-        tk.Checkbutton(root, text="Là nhà cung cấp", variable=self.checkbox_supplier).grid(row=len(self.fields), column=1)
+        # Checkbox Là khách hàng / Là nhà cung cấp
+        self.customer_var = tk.IntVar()
+        self.supplier_var = tk.IntVar()
+        tk.Checkbutton(root, text="Là khách hàng", variable=self.customer_var).grid(row=0, column=2, sticky="w")
+        tk.Checkbutton(root, text="Là nhà cung cấp", variable=self.supplier_var).grid(row=1, column=2, sticky="w")
 
+        # Nút Lưu thông tin
+        tk.Button(root, text="Lưu thông tin", command=self.save_info).grid(row=8, column=0, columnspan=2, pady=5)
 
-        save_button = tk.Button(root, text="Lưu thông tin", command=self.save_info)
-        save_button.grid(row=len(self.fields) + 1, column=0, columnspan=2)
+        # Nút Sinh nhật hôm nay
+        tk.Button(root, text="Sinh nhật ngày hôm nay", command=self.check_birthday).grid(row=9, column=0, columnspan=2, pady=5)
 
-
-        birthday_button = tk.Button(root, text="Sinh nhật ngày hôm nay", command=self.today_birthday)
-        birthday_button.grid(row=len(self.fields) + 2, column=0, columnspan=2)
-
-
-        export_button = tk.Button(root, text="Xuất toàn bộ danh sách", command=self.export_list)
-        export_button.grid(row=len(self.fields) + 3, column=0, columnspan=2)
+        # Nút Xuất danh sách
+        tk.Button(root, text="Xuất toàn bộ danh sách", command=self.export_to_excel).grid(row=10, column=0, columnspan=2, pady=5)
 
     def save_info(self):
-
+        # Lưu thông tin vào file CSV
         data = {field: self.entries[field].get() for field in self.fields}
-        data["Là khách hàng"] = self.checkbox_customer.get()
-        data["Là nhà cung cấp"] = self.checkbox_supplier.get()
+        data["Giới tính"] = self.gender_var.get()
+        data["Là khách hàng"] = self.customer_var.get()
+        data["Là nhà cung cấp"] = self.supplier_var.get()
 
         df = pd.DataFrame([data])
 
-
-        if not os.path.exists("employees.csv"):
-            df.to_csv("employees.csv", index=False)
-        else:
-            df.to_csv("employees.csv", mode='a', header=False, index=False)
-
+        file_exists = os.path.exists("employees.csv")
+        df.to_csv("employees.csv", mode='a', header=not file_exists, index=False, encoding='utf-8-sig')
         messagebox.showinfo("Thành công", "Thông tin đã được lưu!")
 
-    def today_birthday(self):
+    def check_birthday(self):
         try:
-            df = pd.read_csv("employees.csv")
+            df = pd.read_csv("employees.csv", encoding='utf-8-sig')
             today = datetime.today().strftime('%d/%m')
-            birthdays = df[df['Ngày sinh'].str[:5] == today]
+            df['Ngày sinh'] = pd.to_datetime(df['Ngày sinh'], format='%d/%m/%Y', errors='coerce')
+            birthdays = df[df['Ngày sinh'].dt.strftime('%d/%m') == today]
+
             if not birthdays.empty:
-                messagebox.showinfo("Sinh nhật hôm nay", birthdays.to_string(index=False))
+                result = "\n".join(birthdays['Tên'].tolist())
+                messagebox.showinfo("Sinh nhật hôm nay", f"Những người có sinh nhật hôm nay:\n{result}")
             else:
                 messagebox.showinfo("Sinh nhật hôm nay", "Hôm nay không có ai sinh nhật!")
         except FileNotFoundError:
-            messagebox.showerror("Lỗi", "File dữ liệu chưa tồn tại!")
+            messagebox.showerror("Lỗi", "File dữ liệu không tồn tại!")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Lỗi: {e}")
 
-    def export_list(self):
+    def export_to_excel(self):
         try:
-            df = pd.read_csv("employees.csv")
-
+            df = pd.read_csv("employees.csv", encoding='utf-8-sig')
             df['Ngày sinh'] = pd.to_datetime(df['Ngày sinh'], format='%d/%m/%Y', errors='coerce')
             df = df.dropna(subset=['Ngày sinh'])
-            df.sort_values(by='Ngày sinh', inplace=True, ascending=False)
-            df.to_excel("employee_list.xlsx", index=False)
-            messagebox.showinfo("Thành công", "Danh sách đã được xuất ra file Excel!")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Không thể xuất danh sách: {e}")
+            df.sort_values(by='Ngày sinh', ascending=True, inplace=True)
 
-if _name_ == "_main_":
+            df.to_excel("employee_list.xlsx", index=False, engine='openpyxl')
+            messagebox.showinfo("Thành công", "Danh sách đã được xuất ra file Excel!")
+        except FileNotFoundError:
+            messagebox.showerror("Lỗi", "File dữ liệu không tồn tại!")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Lỗi: {e}")
+
+if __name__ == "__main__":
     root = tk.Tk()
     app = EmployeeApp(root)
     root.mainloop()
+
 
 
 
